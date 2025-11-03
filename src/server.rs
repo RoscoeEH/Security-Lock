@@ -6,7 +6,11 @@ use crate::constants::*;
 use crate::crypto::*;
 
 async fn process_message(message: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-    Ok(message.to_vec())
+    let mut new_message = message.to_vec();
+    new_message.extend_from_slice(" ;)".as_bytes());
+
+    Ok(new_message)
+
 }
 
 pub async fn start_server() -> Result<(), Box<dyn Error + Send + Sync>> {

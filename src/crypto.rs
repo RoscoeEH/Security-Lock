@@ -4,14 +4,14 @@ use std::error::Error;
 
 type HmacSha256 = Hmac<Sha256>;
 
-fn hmac_sign(message: &[u8], key: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn hmac_sign(message: &[u8], key: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut mac = HmacSha256::new_from_slice(key)?;
     mac.update(message);
 
     Ok(mac.finalize().into_bytes().to_vec())
 }
 
-fn hmac_verify(message: &[u8], key: &[u8], signature: &[u8]) -> Result<(), Box<dyn Error>> {
+pub fn hmac_verify(message: &[u8], key: &[u8], signature: &[u8]) -> Result<(), Box<dyn Error>> {
     let mut mac = HmacSha256::new_from_slice(key)?;
     mac.update(message);
 
