@@ -27,8 +27,33 @@ fn get_challenge() -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> 
     Ok(challenge)
 }
 
-fn verify_response(response: &[u8]) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    Ok(true)
+fn verify_response(response: &[u8]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if response.len() < 71 {
+        return Err("Response is too short".into());
+    }
+
+    let magic = &response[..3];
+
+    let response_num_bytes = &response[3..7];
+    let response_num = u32::from_le_bytes(response_num_bytes.try_into().map_err(|_| "Invalid slice length")?);
+
+    let content = &response[3..39];
+    let sig = &response[39..];
+
+    if magic != "RSP".as_bytes() {
+        return Err("Bad Magic.".into());
+    }
+    // Check message_num PLACEHOLDER
+    if response_num != 16 {
+        return Err("Bad message number.".into());
+    }
+
+    // Placeholder before the deriving of a session key
+    let key = get_key()?;
+    hmac_verify(content, &key, sig)?;
+
+    Ok(())
+
 }
 
 pub async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -46,13 +71,18 @@ pub async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Syn
 
     let message = get_challenge()?;
     stream.write_all(&message).await?;
-    println!("Sent: {}", String::from_utf8_lossy(&message));
+    println!("Sent");
+    print_hex(&message);
 
     let mut buffer = vec![0; 1024];
     let n = stream.read(&mut buffer).await?;
     if n > 0 {
-        let response = String::from_utf8_lossy(&buffer[..n]);
-        println!("Received: {}", response);
+        println!("Received");
+        print_hex(&buffer[..n]);
+        match verify_response(&buffer[..n]) {
+            Ok(()) => println!("Valid response."),
+            Err(_) => println!("Invalid response.")
+        }
     }
 
     println!("Closing connection...");

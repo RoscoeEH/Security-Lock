@@ -1,3 +1,4 @@
+use hex::encode;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use std::error::Error;
@@ -18,4 +19,10 @@ pub fn get_key() -> io::Result<Vec<u8>> {
     let mut key = Vec::new();
     file.read_to_end(&mut key)?;
     Ok(key)
+}
+
+// Print function for debugging
+pub fn print_hex(data: &[u8]) {
+    let hex_string = encode(data);
+    println!("{}", hex_string);
 }
