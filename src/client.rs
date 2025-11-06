@@ -1,6 +1,6 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::time::{Duration, sleep};
+use tokio::time::{Duration, sleep, timeout};
 
 use crate::constants::*;
 use crate::crypto::*;
@@ -24,6 +24,7 @@ fn get_challenge(counter: u32) -> Result<Vec<u8>, Box<dyn std::error::Error + Se
 
 fn verify_response(
     response: &[u8],
+    og_message: &[u8],
     counter: u32,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if response.len() < 71 {
@@ -50,6 +51,11 @@ fn verify_response(
         return Err("Bad message number.".into());
     }
 
+    let og_message_content = &og_message[3..];
+    if content != og_message_content {
+        return Err("Bad message.".into());
+    }
+
     // Placeholder before the deriving of a session key
     let key = get_key()?;
     hmac_verify(content, &key, sig)?;
@@ -74,24 +80,38 @@ pub async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Syn
     loop {
         let message = get_challenge(counter)?;
         if let Err(e) = stream.write_all(&message).await {
-            return Err(Box::new(e));
+            if e.kind() == std::io::ErrorKind::BrokenPipe
+                || e.kind() == std::io::ErrorKind::ConnectionReset
+            {
+                eprintln!("Server disconnected. Closing client...");
+                break;
+            } else {
+                return Err(Box::new(e));
+            }
         }
         println!("Sent: {}", counter);
-        print_hex(&message);
 
         let mut buffer = vec![0; 1024];
-        let n = match stream.read(&mut buffer).await {
-            Ok(n) => n,
-            Err(e) => {
+        let n = match timeout(
+            Duration::from_millis(TIMEOUT_WINDOW),
+            stream.read(&mut buffer),
+        )
+        .await
+        {
+            Ok(Ok(n)) => n,
+            Ok(Err(e)) => {
                 eprintln!("Error while reading response: {}", e);
                 break;
             }
+            Err(_) => {
+                eprintln!("Timeout while reading response");
+                break;
+            }
         };
-
         if n > 0 {
             println!("Received");
-            print_hex(&buffer[..n]);
-            match verify_response(&buffer[..n], counter) {
+
+            match verify_response(&buffer[..n], &message, counter) {
                 Ok(()) => println!("Valid response."),
                 Err(_) => {
                     println!("Invalid response.");

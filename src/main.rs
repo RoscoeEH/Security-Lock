@@ -16,7 +16,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             server::start_server().await?;
         }
         cli::Command::Client => {
-            client::start_client().await?;
+            if let Err(e) = client::start_client().await {
+                eprintln!("Client encountered an error: {}", e);
+            }
+            utils::run_shutdown()?;
         }
     }
 

@@ -1,9 +1,9 @@
 use hex::encode;
-use rand::rngs::OsRng;
 use rand::RngCore;
-use std::error::Error;
+use rand::rngs::OsRng;
 use std::fs::File;
 use std::io::{self, Read};
+use std::process::Command;
 
 use crate::constants::*;
 
@@ -25,4 +25,26 @@ pub fn get_key() -> io::Result<Vec<u8>> {
 pub fn print_hex(data: &[u8]) {
     let hex_string = encode(data);
     println!("{}", hex_string);
+}
+
+pub fn run_shutdown() -> std::io::Result<()> {
+    if cfg!(debug_assertions) {
+        println!("[DEV MODE] Would shutdown system");
+        Ok(())
+    } else {
+        let status = Command::new(DISCONNECT_PROGRAM)
+            .arg(DISCONNECT_ARG)
+            .status()?;
+
+        if status.success() {
+            println!("System is shutting down...");
+            Ok(())
+        } else {
+            eprintln!("Failed to execute shutdown: {:?}", status);
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "shutdown failed",
+            ))
+        }
+    }
 }
