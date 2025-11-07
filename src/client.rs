@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::{Duration, sleep, timeout};
@@ -26,6 +27,7 @@ fn verify_response(
     response: &[u8],
     og_message: &[u8],
     counter: u32,
+    key: &[u8],
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if response.len() < 71 {
         return Err("Response is too short".into());
@@ -57,14 +59,16 @@ fn verify_response(
     }
 
     // Placeholder before the deriving of a session key
-    let key = get_key()?;
     hmac_verify(content, &key, sig)?;
 
     Ok(())
 }
 
-pub async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let server_addr = ADDRESS;
+pub async fn start_client(
+    ip_addr: String,
+    key_path: String,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let server_addr = ip_addr.as_str();
 
     let mut counter: u32 = 0;
 
@@ -76,6 +80,9 @@ pub async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Syn
         }
     };
     println!("Connected to server at {}", server_addr);
+
+    // Init key outside the loop, will replace with SEK derivation.
+    let key = Arc::new(get_key(key_path)?);
 
     loop {
         let message = get_challenge(counter)?;
@@ -111,7 +118,7 @@ pub async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Syn
         if n > 0 {
             println!("Received");
 
-            match verify_response(&buffer[..n], &message, counter) {
+            match verify_response(&buffer[..n], &message, counter, &key) {
                 Ok(()) => println!("Valid response."),
                 Err(_) => {
                     println!("Invalid response.");

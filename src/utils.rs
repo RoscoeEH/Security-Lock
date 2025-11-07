@@ -14,8 +14,8 @@ pub fn get_message() -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>
     Ok(message)
 }
 
-pub fn get_key() -> io::Result<Vec<u8>> {
-    let mut file = File::open(HMAC_KEY_FILE)?;
+pub fn get_key(key_path: String) -> io::Result<Vec<u8>> {
+    let mut file = File::open(key_path)?;
     let mut key = Vec::new();
     file.read_to_end(&mut key)?;
     Ok(key)

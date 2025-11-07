@@ -1,14 +1,15 @@
 use std::error::Error;
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use crate::constants::*;
 use crate::crypto::*;
 use crate::utils::*;
 
 async fn process_message(
     message: &[u8],
     counter: u32,
+    key: &[u8],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     if message.len() < 39 {
         return Err("Message is too short".into());
@@ -34,8 +35,7 @@ async fn process_message(
     }
 
     // Placeholder before the deriving of a session key
-    let key = get_key()?;
-    let sig = hmac_sign(to_sign, &key)?;
+    let sig = hmac_sign(to_sign, key)?;
 
     let mut result = Vec::<u8>::new();
     result.extend_from_slice("RSP".as_bytes());
@@ -45,13 +45,21 @@ async fn process_message(
     Ok(result)
 }
 
-pub async fn start_server() -> Result<(), Box<dyn Error + Send + Sync>> {
-    let listener = TcpListener::bind(ADDRESS).await?;
+pub async fn start_server(
+    ip_addr: String,
+    key_path: String,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let listener = TcpListener::bind(ip_addr).await?;
     println!("Server running on localhost:8080");
+
+    // Init key outside the loop, will replace with SEK derivation.
+    let key = Arc::new(get_key(key_path)?);
 
     loop {
         let (mut socket, addr) = listener.accept().await?;
         println!("New connection: {}", addr);
+
+        let key_clone = Arc::clone(&key);
 
         tokio::spawn(async move {
             let mut counter: u32 = 0;
@@ -60,7 +68,7 @@ pub async fn start_server() -> Result<(), Box<dyn Error + Send + Sync>> {
                 match socket.read(&mut buffer).await {
                     Ok(n) if n > 0 => {
                         println!("Received: {}", counter);
-                        match process_message(&buffer[..n], counter).await {
+                        match process_message(&buffer[..n], counter, &key_clone).await {
                             Ok(response) => {
                                 if let Err(e) = socket.write_all(&response).await {
                                     eprintln!("Failed to write response: {}", e);
