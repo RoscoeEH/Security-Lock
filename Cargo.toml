@@ -12,6 +12,8 @@ rand = "0.8"
 rand_core = "0.6"
 clap = { version = "4.4", features = ["derive"] }
 chacha20poly1305 = "0.10"
+rpassword = "7.3"
+
 
 # for debugging
 hex = "0.4"

@@ -17,7 +17,7 @@ fn get_challenge(counter: u32) -> Result<Vec<u8>, Box<dyn std::error::Error + Se
     let num = counter.to_le_bytes();
     challenge.extend_from_slice(&num);
     // Add random message
-    let message = get_message()?;
+    let message = get_random_bits()?;
     challenge.extend_from_slice(&message);
 
     Ok(challenge)
@@ -82,7 +82,7 @@ pub async fn start_client(
     println!("Connected to server at {}", server_addr);
 
     // Init key outside the loop, will replace with SEK derivation.
-    let key = Arc::new(get_key(key_path)?);
+    let key = Arc::new(get_psk(key_path)?);
 
     loop {
         let message = get_challenge(counter)?;

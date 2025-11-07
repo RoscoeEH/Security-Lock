@@ -53,7 +53,7 @@ pub async fn start_server(
     println!("Server running on localhost:8080");
 
     // Init key outside the loop, will replace with SEK derivation.
-    let key = Arc::new(get_key(key_path)?);
+    let key = Arc::new(get_psk(key_path)?);
 
     loop {
         let (mut socket, addr) = listener.accept().await?;
