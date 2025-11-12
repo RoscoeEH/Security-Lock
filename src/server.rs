@@ -55,6 +55,8 @@ pub async fn start_server(
     // Init key outside the loop, will replace with SEK derivation.
     let key = Arc::new(get_psk(key_path)?);
 
+    println!("Server ready");
+
     loop {
         let (mut socket, addr) = listener.accept().await?;
         println!("New connection: {}", addr);
