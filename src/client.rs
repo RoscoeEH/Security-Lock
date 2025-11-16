@@ -186,7 +186,11 @@ async fn challenge_response_loop(
                 }
             }
         }
+
         counter += 1;
+        if counter == u32::MAX {
+            return Err("Counter overflowed, power cycle to obtain new session key.".into());
+        }
         sleep(Duration::from_millis(MESSAGE_DELAY)).await;
     }
     Ok(())
