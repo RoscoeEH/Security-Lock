@@ -1,3 +1,5 @@
+use std::error::Error;
+
 pub mod cli;
 pub mod client;
 pub mod constants;
@@ -8,7 +10,7 @@ pub mod utils;
 use clap::Parser;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let cli = cli::Cli::parse();
 
     match cli.command {

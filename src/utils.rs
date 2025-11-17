@@ -1,6 +1,7 @@
 use hex::encode;
 use rand::Rng;
 use rpassword::read_password;
+use std::error::Error;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::process::Command;
@@ -15,7 +16,7 @@ pub fn random_bytes(len: usize) -> Vec<u8> {
 }
 
 // Returns 256 random bits
-pub fn get_random_bits() -> Vec<u8> {
+pub fn get_message() -> Vec<u8> {
     random_bytes(MESSAGE_SIZE)
 }
 
@@ -28,7 +29,7 @@ pub fn get_salt() -> Vec<u8> {
 }
 
 // Reads the preshared key file
-pub fn get_psk(key_path: String) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+pub fn get_psk(key_path: String) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     let mut file = File::open(&key_path)?;
 
     let mut key_bytes = Vec::new();
@@ -63,7 +64,7 @@ pub fn get_psk(key_path: String) -> Result<Vec<u8>, Box<dyn std::error::Error + 
 fn encrypt_key_file(
     key_path: String,
     key_bytes: &[u8],
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     let salt = get_salt();
     let kek = get_kek(&salt)?;
     let nonce = get_nonce();
@@ -82,7 +83,7 @@ fn encrypt_key_file(
     Ok(())
 }
 
-fn decrypt_key_file(key_bytes: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+fn decrypt_key_file(key_bytes: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     // Encrypted key format -> "KEY" (3 bytes) | Ciphertext (48 bytes) | Nonce (12 bytes) | KEK salt (16 bytes)
     let magic = &key_bytes[..3];
     let ciphertext = &key_bytes[3..51];
@@ -105,7 +106,7 @@ fn decrypt_key_file(key_bytes: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Err
 }
 
 // TODO read password twice on first entry to avoid the wrong password
-fn get_kek(salt: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+fn get_kek(salt: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     println!("Enter password: ");
     // puts in a password automatically in dev mode for testing
     let password = match cfg!(debug_assertions) {
@@ -152,7 +153,7 @@ pub fn run_shutdown() -> std::io::Result<()> {
 pub fn overwrite_key_file(
     key_path: String,
     encrypted_key: &[u8],
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut file = File::create(key_path)?;
 
     file.write_all(encrypted_key)?;

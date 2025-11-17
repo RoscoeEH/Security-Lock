@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -7,7 +8,7 @@ use crate::constants::*;
 use crate::crypto::*;
 use crate::utils::*;
 
-fn get_challenge(counter: u32) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+fn get_challenge(counter: u32) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     // Magic (3 bytes) | message number (4 bytes) | message (32 bytes)
 
     let mut challenge = Vec::<u8>::new();
@@ -17,7 +18,7 @@ fn get_challenge(counter: u32) -> Result<Vec<u8>, Box<dyn std::error::Error + Se
     let num = counter.to_le_bytes();
     challenge.extend_from_slice(&num);
     // Add random message
-    let message = get_random_bits();
+    let message = get_message();
     challenge.extend_from_slice(&message);
 
     Ok(challenge)
@@ -28,7 +29,7 @@ fn verify_response(
     og_message: &[u8],
     counter: u32,
     key: &[u8],
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     if response.len() < 71 {
         return Err("Response is too short".into());
     }
@@ -67,9 +68,9 @@ fn verify_response(
 async fn key_agreement(
     mut stream: TcpStream,
     key_path: String,
-) -> Result<(TcpStream, Arc<Vec<u8>>), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(TcpStream, Arc<Vec<u8>>), Box<dyn Error + Send + Sync>> {
     // Generate random session key
-    let sek = get_random_bits();
+    let sek = get_message();
 
     // encrypt the session key
     let psk = get_psk(key_path)?;
@@ -82,7 +83,7 @@ async fn key_agreement(
     message.extend_from_slice("KAC".as_bytes());
     message.extend_from_slice(&protected_key);
     message.extend_from_slice(&nonce);
-    let key_agreement_challenge = get_random_bits();
+    let key_agreement_challenge = get_message();
     message.extend_from_slice(&key_agreement_challenge);
 
     if let Err(e) = stream.write_all(&message).await {
@@ -134,7 +135,7 @@ async fn key_agreement(
 async fn challenge_response_loop(
     mut stream: TcpStream,
     key: &Arc<Vec<u8>>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut counter: u32 = 0;
     loop {
         let message = get_challenge(counter)?;
@@ -199,7 +200,7 @@ async fn challenge_response_loop(
 pub async fn start_client(
     ip_addr: String,
     key_path: String,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     let server_addr = ip_addr.as_str();
 
     let stream = match TcpStream::connect(server_addr).await {

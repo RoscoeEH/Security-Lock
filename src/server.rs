@@ -10,7 +10,7 @@ async fn process_message(
     message: &[u8],
     counter: u32,
     key: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if message.len() < 39 {
         return Err("Message is too short".into());
     }
@@ -48,7 +48,7 @@ async fn process_message(
 async fn key_agreement(
     mut socket: TcpStream,
     psk: &[u8],
-) -> Result<(TcpStream, Arc<Vec<u8>>), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(TcpStream, Arc<Vec<u8>>), Box<dyn Error + Send + Sync>> {
     // Get initial message
     let mut key_init_message = vec![0; 1024];
     let n = match socket.read(&mut key_init_message).await {
@@ -90,7 +90,7 @@ async fn challenge_response_loop(
     mut socket: TcpStream,
     key: &Arc<Vec<u8>>,
     addr: String,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut counter: u32 = 0;
     loop {
         let mut buffer = [0; 1024];

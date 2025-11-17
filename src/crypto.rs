@@ -7,13 +7,12 @@ use hmac::{Hmac, Mac};
 use pqcrypto_mlkem::mlkem768::*;
 use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret};
 use sha2::Sha256;
+use std::error::Error;
 
 type HmacSha256 = Hmac<Sha256>;
 
-pub fn hmac_sign(
-    message: &[u8],
-    key: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+// --- Digital Signatures ---
+pub fn hmac_sign(message: &[u8], key: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     let mut mac = <HmacSha256 as Mac>::new_from_slice(key)?;
     mac.update(message);
 
@@ -24,7 +23,7 @@ pub fn hmac_verify(
     message: &[u8],
     key: &[u8],
     signature: &[u8],
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut mac = <HmacSha256 as Mac>::new_from_slice(key)?;
     mac.update(message);
 
@@ -32,11 +31,13 @@ pub fn hmac_verify(
     Ok(())
 }
 
+// --- Key Derivation ---
+
 // Uses argon2 with m_cost 256*1024, t_cost 8, and p_cost 4. Outputs 256-bit key.
 pub fn argon2_derive_key(
     password: String,
     salt: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     let params = Params::new(256 * 1024, 8, 4, Some(32))
         .map_err(|e| format!("Invalid Argon2 parameters: {}", e))?;
 
@@ -50,13 +51,15 @@ pub fn argon2_derive_key(
     Ok(key)
 }
 
+// --- Symmetric encryption ---
+
 // ChaCha20Poly1305 encryption with a 256-bit key and 96-bit nonce
 #[allow(deprecated)] // from_slice is deprecated, look into update later
 pub fn encrypt(
     plaintext: &[u8],
     key: &[u8],
     nonce: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if key.len() != 32 {
         return Err("Key must be 32 bytes".into());
     }
@@ -80,7 +83,7 @@ pub fn decrypt(
     ciphertext: &[u8],
     key: &[u8],
     nonce: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if key.len() != 32 {
         return Err("Key must be 256 bits".into());
     }
@@ -98,7 +101,9 @@ pub fn decrypt(
     Ok(plaintext)
 }
 
-pub fn kem_key_gen() -> Result<(Vec<u8>, Vec<u8>), Box<dyn std::error::Error + Send + Sync>> {
+// --- Key Encapsulation ---
+
+pub fn kem_key_gen() -> Result<(Vec<u8>, Vec<u8>), Box<dyn Error + Send + Sync>> {
     let (pk, sk) = keypair();
 
     Ok((pk.as_bytes().to_vec(), sk.as_bytes().to_vec()))
@@ -106,7 +111,7 @@ pub fn kem_key_gen() -> Result<(Vec<u8>, Vec<u8>), Box<dyn std::error::Error + S
 
 pub fn key_encap(
     encap_key_bytes: &[u8],
-) -> Result<(Vec<u8>, Vec<u8>), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(Vec<u8>, Vec<u8>), Box<dyn Error + Send + Sync>> {
     let pk = PublicKey::from_bytes(encap_key_bytes).map_err(|_| "Invalid public key bytes")?;
 
     let (ss, ct) = encapsulate(&pk);
@@ -117,7 +122,7 @@ pub fn key_encap(
 pub fn key_decap(
     decap_key_bytes: &[u8],
     ct_bytes: &[u8],
-) -> Result<(Vec<u8>, Vec<u8>), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(Vec<u8>, Vec<u8>), Box<dyn Error + Send + Sync>> {
     let sk = SecretKey::from_bytes(decap_key_bytes).map_err(|_| "Invalid secret key bytes")?;
 
     let ct = Ciphertext::from_bytes(ct_bytes).map_err(|_| "Invalid ciphertext bytes")?;
