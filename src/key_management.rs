@@ -1,4 +1,7 @@
+use rpassword::read_password;
 use std::error::Error;
+use std::fs::File;
+use std::io::Read;
 
 use crate::crypto::*;
 use crate::utils::*;
@@ -25,4 +28,78 @@ pub fn generate_user_keypair(
     overwrite_key_file(dk_path, &dk_data)?;
 
     Ok(())
+}
+
+fn decrypt_key_file(key_bytes: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    // Encrypted key format -> "KEY" (3 bytes) | decap key (2416 bytes) | nonce (12 bytes) | salt (16 bytes)
+    let magic = &key_bytes[..3];
+    let ciphertext = &key_bytes[3..2419];
+    let nonce = &key_bytes[2419..2431];
+    let salt = &key_bytes[2431..2447];
+
+    // Verify magic
+    if magic != "KEY".as_bytes() {
+        return Err("Bad PSK magic.".into());
+    }
+
+    // Derive kek
+    let kek = get_kek(salt)?;
+    let plaintext_key = match decrypt(ciphertext, &kek, nonce) {
+        Ok(key) => key,
+        Err(_) => return Err("PSK decryption failed.".into()),
+    };
+
+    Ok(plaintext_key)
+}
+
+// TODO read password twice on first entry to avoid the wrong password
+fn get_kek(salt: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    println!("Enter password: ");
+    // puts in a password automatically in dev mode for testing
+    let password = match cfg!(debug_assertions) {
+        true => {
+            println!("[DEV MODE] Using default password");
+            String::from("password")
+        }
+        false => read_password()?,
+    };
+
+    let kek = argon2_derive_key(password, salt)?;
+
+    Ok(kek)
+}
+
+// Reads the preshared key file
+pub fn get_decap_key(key_path: String) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    let mut file = File::open(&key_path)?;
+
+    let mut key_bytes = Vec::new();
+    file.read_to_end(&mut key_bytes)?;
+
+    let decap_key = match key_bytes.len() {
+        // Key is encrypted, has header, nonce, signature, etc...
+        2447 => decrypt_key_file(&key_bytes)?,
+        _ => {
+            return Err("Unrecognized PSK format.".into());
+        }
+    };
+
+    Ok(decap_key)
+}
+
+pub fn get_encap_key(key_path: String) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    let mut file = File::open(&key_path)?;
+
+    let mut key_bytes = Vec::new();
+    file.read_to_end(&mut key_bytes)?;
+
+    let psk = match key_bytes.len() {
+        // Key is plaintext, raw 256 bits
+        1184 => key_bytes,
+        _ => {
+            return Err("Unrecognized PSK format.".into());
+        }
+    };
+
+    Ok(psk)
 }

@@ -6,6 +6,7 @@ use tokio::time::{Duration, sleep, timeout};
 
 use crate::constants::*;
 use crate::crypto::*;
+use crate::key_management::*;
 use crate::utils::*;
 
 fn get_challenge(counter: u32) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
@@ -73,7 +74,7 @@ async fn key_agreement(
     let sek = get_message();
 
     // encrypt the session key
-    let psk = get_psk(key_path)?;
+    let psk = get_encap_key(key_path)?;
     let nonce = get_nonce();
     let protected_key = encrypt(&sek, &psk, &nonce)?;
 

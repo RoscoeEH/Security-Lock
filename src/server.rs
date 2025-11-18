@@ -4,6 +4,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::crypto::*;
+use crate::key_management::*;
 use crate::utils::*;
 
 async fn process_message(
@@ -129,7 +130,7 @@ pub async fn start_server(
     let listener = TcpListener::bind(ip_addr).await?;
     println!("Server running on localhost:8080");
 
-    let psk = get_psk(key_path)?;
+    let psk = get_decap_key(key_path)?;
 
     println!("Server ready");
 
