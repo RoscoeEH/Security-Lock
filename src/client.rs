@@ -138,7 +138,7 @@ async fn key_agreement(
 
 async fn challenge_response_loop(
     mut stream: TcpStream,
-    key: &Arc<Vec<u8>>,
+    mut key: Arc<Vec<u8>>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut counter: u32 = 0;
     loop {
@@ -192,9 +192,16 @@ async fn challenge_response_loop(
             }
         }
 
+        if counter == 5 {
+            counter = SEK_USE_LIMIT;
+        }
         counter += 1;
-        if counter == u32::MAX {
-            return Err("Counter overflowed, power cycle to obtain new session key.".into());
+        // renew sek at limit
+        if counter >= SEK_USE_LIMIT {
+            // New salt is first 16 random bytes of last message
+            let salt = &buffer[3..19];
+            key = renew_sek(key.as_slice(), &salt)?;
+            counter = 0;
         }
         sleep(Duration::from_millis(MESSAGE_DELAY)).await;
     }
@@ -219,7 +226,7 @@ pub async fn start_client(
     // Init key outside the loop, will replace with SEK derivation.
     let (stream, key) = key_agreement(stream, key_path).await?;
 
-    challenge_response_loop(stream, &key).await?;
+    challenge_response_loop(stream, key).await?;
 
     println!("Closing connection...");
 

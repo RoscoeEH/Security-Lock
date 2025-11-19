@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
+use crate::constants::*;
 use crate::crypto::*;
 use crate::key_management::*;
 
@@ -61,6 +62,8 @@ async fn key_agreement(
             return Err("Halted due to key agreement error".into());
         }
     };
+
+    // determine sek
     let mut sek = Vec::<u8>::new();
     if n > 0 {
         println!("Recieved key agreement message");
@@ -92,7 +95,7 @@ async fn key_agreement(
 
 async fn challenge_response_loop(
     mut socket: TcpStream,
-    key: &Arc<Vec<u8>>,
+    mut key: Arc<Vec<u8>>,
     addr: String,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut counter: u32 = 0;
@@ -121,7 +124,18 @@ async fn challenge_response_loop(
             }
             Err(e) => eprintln!("Failed to read from socket: {}", e),
         }
+        if counter == 10 {
+            counter = SEK_USE_LIMIT;
+        }
+
         counter += 1;
+        // renew sek at limit
+        if counter >= SEK_USE_LIMIT {
+            // New salt is first 16 random bytes of last message
+            let salt = &buffer[3..19];
+            key = renew_sek(key.as_slice(), &salt)?;
+            counter = 0;
+        }
     }
     Ok(())
 }
@@ -147,7 +161,7 @@ pub async fn start_server(
         let key_clone = Arc::clone(&key);
 
         tokio::spawn(async move {
-            if let Err(e) = challenge_response_loop(socket, &key_clone, addr.to_string()).await {
+            if let Err(e) = challenge_response_loop(socket, key_clone, addr.to_string()).await {
                 eprintln!("Error handling connection from {}: {}", addr, e);
             }
         });

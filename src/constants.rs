@@ -15,6 +15,7 @@ pub const NONCE_SIZE: usize = 12;
 
 pub const MESSAGE_DELAY: u64 = 500; // in milliseconds
 pub const TIMEOUT_WINDOW: u64 = 1000; // in milliseconds
+pub const SEK_USE_LIMIT: u32 = 2_u32.pow(24);
 
 pub const DISCONNECT_PROGRAM: &str = "systemctl";
 pub const DISCONNECT_ARG: &str = "poweroff";
