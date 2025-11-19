@@ -14,7 +14,7 @@ pub fn generate_user_keypair(
 
     // Get encryption needs
     let salt = get_salt();
-    let kek = get_kek(&salt)?;
+    let kek = get_kek(&salt, true)?;
     let nonce = get_nonce();
     let protected_key = encrypt(&dk, &kek, &nonce)?;
 
@@ -43,7 +43,7 @@ fn decrypt_key_file(key_bytes: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + 
     }
 
     // Derive kek
-    let kek = get_kek(salt)?;
+    let kek = get_kek(salt, false)?;
     let plaintext_key = match decrypt(ciphertext, &kek, nonce) {
         Ok(key) => key,
         Err(_) => return Err("PSK decryption failed.".into()),
@@ -53,16 +53,31 @@ fn decrypt_key_file(key_bytes: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + 
 }
 
 // TODO read password twice on first entry to avoid the wrong password
-fn get_kek(salt: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+fn get_kek(salt: &[u8], new_password: bool) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    // Uses default key for dev testing
+    if cfg!(debug_assertions) {
+        println!("[DEV MODE] Using dev kek");
+        let expanded = expand_tilde("config/test_kek.bin");
+        let mut file = File::open(&expanded)?;
+
+        let mut key_bytes = Vec::new();
+        file.read_to_end(&mut key_bytes)?;
+
+        return Ok(key_bytes);
+    }
+
+    // Gets user password
     println!("Enter password: ");
-    // puts in a password automatically in dev mode for testing
-    let password = match cfg!(debug_assertions) {
-        true => {
-            println!("[DEV MODE] Using dev kek");
-            return get_dev_kek();
+    let password = read_password()?;
+
+    // Confirm password if it is being entered for the first time
+    if new_password {
+        println!("Re-enter password: ");
+        let password_check = read_password()?;
+        if password != password_check {
+            return Err("Passwords do not match.".into());
         }
-        false => read_password()?,
-    };
+    }
 
     let kek = argon2_derive_key(password, salt)?;
 
@@ -106,14 +121,4 @@ pub fn get_encap_key(key_path: String) -> Result<Vec<u8>, Box<dyn Error + Send +
     };
 
     Ok(psk)
-}
-
-fn get_dev_kek() -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-    let expanded = expand_tilde("config/test_key.bin");
-    let mut file = File::open(&expanded)?;
-
-    let mut key_bytes = Vec::new();
-    file.read_to_end(&mut key_bytes)?;
-
-    Ok(key_bytes)
 }
