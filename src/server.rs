@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -7,8 +8,10 @@ use crate::constants::*;
 use crate::crypto::*;
 use crate::key_management::*;
 
-#[allow(unused_imports)]
+#[allow(unused_imports)] // get_hex_string is sometimes used in debugging
 use crate::utils::*;
+
+static SK_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 async fn process_message(
     message: &[u8],
@@ -76,7 +79,7 @@ async fn key_agreement(
         let protected_ss = &key_init_message[3..1091];
         let ss = key_decap(dk, protected_ss)?;
         let salt = &key_init_message[1091..1107];
-        sek = hkdf_derive_key(&ss, &salt)?;
+        sek = hkdf_derive_key(&ss, &salt, &SK_COUNTER)?;
 
         // Send back response
         let key_agreement_challenge = &key_init_message[1107..1139];
@@ -124,16 +127,12 @@ async fn challenge_response_loop(
             }
             Err(e) => eprintln!("Failed to read from socket: {}", e),
         }
-        if counter == 10 {
-            counter = SEK_USE_LIMIT;
-        }
-
         counter += 1;
         // renew sek at limit
         if counter >= SEK_USE_LIMIT {
             // New salt is first 16 random bytes of last message
             let salt = &buffer[3..19];
-            key = renew_sek(key.as_slice(), &salt)?;
+            key = renew_sek(key.as_slice(), &salt, &SK_COUNTER)?;
             counter = 0;
         }
     }

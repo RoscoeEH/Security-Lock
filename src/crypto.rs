@@ -10,6 +10,7 @@ use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret};
 use sha2::Sha256;
 
 use std::error::Error;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::constants::*;
 
@@ -73,10 +74,15 @@ pub fn argon2_pin_hash(pin: String, salt: &[u8]) -> Result<Vec<u8>, Box<dyn Erro
 pub fn hkdf_derive_key(
     key_material: &[u8],
     salt: &[u8],
+    counter: &AtomicU64,
 ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     let hk = Hkdf::<Sha256>::new(Some(salt), key_material);
     let mut key_vec = [0u8; SYM_KEY_SIZE];
-    hk.expand(&[], &mut key_vec)
+    let info = counter
+        .fetch_add(1, Ordering::SeqCst)
+        .to_be_bytes()
+        .to_vec();
+    hk.expand(&info, &mut key_vec)
         .map_err(|_| "HKDF expand failed")?;
 
     Ok(key_vec.to_vec())

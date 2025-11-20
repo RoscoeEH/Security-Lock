@@ -3,6 +3,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 
 use crate::crypto::*;
 use crate::utils::*;
@@ -124,10 +125,14 @@ pub fn get_encap_key(key_path: String) -> Result<Vec<u8>, Box<dyn Error + Send +
     Ok(psk)
 }
 
-pub fn renew_sek(sek: &[u8], salt: &[u8]) -> Result<Arc<Vec<u8>>, Box<dyn Error + Sync + Send>> {
+pub fn renew_sek(
+    sek: &[u8],
+    salt: &[u8],
+    counter: &AtomicU64,
+) -> Result<Arc<Vec<u8>>, Box<dyn Error + Sync + Send>> {
     if cfg!(debug_assertions) {
         println!("Renewing session key");
     }
-    let new_sek = hkdf_derive_key(sek, salt)?;
+    let new_sek = hkdf_derive_key(sek, salt, counter)?;
     Ok(Arc::new(new_sek))
 }

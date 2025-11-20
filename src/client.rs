@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::{Duration, sleep, timeout};
@@ -8,6 +9,8 @@ use crate::constants::*;
 use crate::crypto::*;
 use crate::key_management::*;
 use crate::utils::*;
+
+static SK_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn get_challenge(counter: u32) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     // Magic (3 bytes) | message number (4 bytes) | message (32 bytes)
@@ -76,7 +79,7 @@ async fn key_agreement(
 
     // Get sek from hkdf
     let salt = get_salt();
-    let sek = hkdf_derive_key(&ss, &salt)?;
+    let sek = hkdf_derive_key(&ss, &salt, &SK_COUNTER)?;
 
     // Generate key agreement message
     // format is: "KAC" (3 bytes) | ss encrypted (1088 bytes) | salt (16 bytes) | message (32 bytes)
@@ -192,15 +195,12 @@ async fn challenge_response_loop(
             }
         }
 
-        if counter == 5 {
-            counter = SEK_USE_LIMIT;
-        }
         counter += 1;
         // renew sek at limit
         if counter >= SEK_USE_LIMIT {
             // New salt is first 16 random bytes of last message
             let salt = &buffer[3..19];
-            key = renew_sek(key.as_slice(), &salt)?;
+            key = renew_sek(key.as_slice(), &salt, &SK_COUNTER)?;
             counter = 0;
         }
         sleep(Duration::from_millis(MESSAGE_DELAY)).await;
