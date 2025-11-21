@@ -22,7 +22,5 @@ pub const DISCONNECT_ARG: &str = "poweroff";
 
 // Status codes
 pub const STATUS_INITIAL: u8 = 0;
-pub const STATUS_COMPUTED_KEY: u8 = 16;
-pub const STATUS_ARMED: u8 = 32;
-pub const STATUS_DISARMED: u8 = 128;
-pub const STATUS_SHUTDOWN: u8 = 224;
+pub const STATUS_ACTIVE: u8 = 16;
+pub const STATUS_ERROR: u8 = 224;

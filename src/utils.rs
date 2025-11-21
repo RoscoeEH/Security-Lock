@@ -5,6 +5,8 @@ use std::fs::{File, create_dir_all};
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::constants::*;
 
@@ -79,4 +81,12 @@ pub fn expand_tilde(path: &str) -> PathBuf {
         }
     }
     PathBuf::from(path)
+}
+
+pub fn set_status(new_status: u8, status: &Arc<AtomicU8>) {
+    status.store(new_status, Ordering::SeqCst);
+}
+
+pub fn get_status(status: &Arc<AtomicU8>) -> u8 {
+    status.load(Ordering::SeqCst)
 }

@@ -44,8 +44,19 @@ fn verify_response(
             .map_err(|_| "Invalid slice length")?,
     );
 
-    let content = &response[3..39];
-    let sig = &response[39..];
+    // Signed data should include: counter (4 bytes) | sig (32 bytes) | status code (1 byte)
+    let signed_data = &response[3..40];
+
+    // Check for problem with server status
+    let server_status = response[39];
+    match server_status {
+        STATUS_ACTIVE => (),
+        STATUS_ERROR => return Err("Keypad error.".into()),
+        _ => return Err("Received unrecognized status code.".into()),
+    }
+
+    // check validity
+    let sig = &response[40..];
 
     if magic != "RSP".as_bytes() {
         return Err("Bad Magic.".into());
@@ -55,13 +66,14 @@ fn verify_response(
         return Err("Bad message number.".into());
     }
 
-    let og_message_content = &og_message[3..];
-    if content != og_message_content {
+    let og_message_signed_data = &og_message[3..];
+    let signed_data_minus_status = &signed_data[..36];
+    if signed_data_minus_status != og_message_signed_data {
         return Err("Bad message.".into());
     }
 
     // Placeholder before the deriving of a session key
-    hmac_verify(content, &key, sig)?;
+    hmac_verify(signed_data, &key, sig)?;
 
     Ok(())
 }
@@ -186,8 +198,8 @@ async fn challenge_response_loop(
                         println!("Response validated");
                     }
                 }
-                Err(_) => {
-                    println!("Invalid response.");
+                Err(e) => {
+                    println!("Invalid response: {}", e);
                     break;
                 }
             }
@@ -201,6 +213,12 @@ async fn challenge_response_loop(
             sk_counter += 1;
             counter = 0;
         }
+
+        // Return error at session key limit - this should never happen
+        if sk_counter == u64::MAX {
+            return Err("Session key counter overflow.".into());
+        }
+
         sleep(Duration::from_millis(MESSAGE_DELAY)).await;
     }
     Ok(())
