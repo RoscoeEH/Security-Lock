@@ -23,4 +23,5 @@ pub const DISCONNECT_ARG: &str = "poweroff";
 // Status codes
 pub const STATUS_INITIAL: u8 = 0;
 pub const STATUS_ACTIVE: u8 = 16;
+pub const STATUS_INACTIVE: u8 = 128;
 pub const STATUS_ERROR: u8 = 224;

@@ -34,8 +34,16 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             result?;
         }
         Command::Client(args) => {
-            if let Err(e) = start_client(args.ip_addr, args.key_path).await {
-                eprintln!("Client encountered an error: {}", e);
+            // If the status is inactive it should retry connection at the same IP
+            loop {
+                if let Err(e) =
+                    start_client(&args.ip_addr.clone(), &args.key_path, Arc::clone(&status)).await
+                {
+                    eprintln!("Client encountered an error: {}", e);
+                }
+                if get_status(&status) != STATUS_INACTIVE {
+                    break;
+                }
             }
             run_shutdown()?;
         }

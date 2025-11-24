@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU8;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::{Duration, sleep, timeout};
@@ -30,6 +31,7 @@ fn verify_response(
     og_message: &[u8],
     counter: u32,
     key: &[u8],
+    status: &Arc<AtomicU8>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     if response.len() < 71 {
         return Err("Response is too short".into());
@@ -46,14 +48,6 @@ fn verify_response(
 
     // Signed data should include: counter (4 bytes) | sig (32 bytes) | status code (1 byte)
     let signed_data = &response[3..40];
-
-    // Check for problem with server status
-    let server_status = response[39];
-    match server_status {
-        STATUS_ACTIVE => (),
-        STATUS_ERROR => return Err("Keypad error.".into()),
-        _ => return Err("Received unrecognized status code.".into()),
-    }
 
     // check validity
     let sig = &response[40..];
@@ -75,12 +69,22 @@ fn verify_response(
     // Placeholder before the deriving of a session key
     hmac_verify(signed_data, &key, sig)?;
 
+    // Check for problem with server status after sig verification
+    let server_status = response[39];
+    match server_status {
+        STATUS_ACTIVE => set_status(STATUS_ACTIVE, status),
+        STATUS_INACTIVE => set_status(STATUS_INACTIVE, status),
+        STATUS_ERROR => return Err("Keypad error.".into()),
+        _ => return Err("Received unrecognized status code.".into()),
+    }
+
     Ok(())
 }
 
 async fn key_agreement(
     mut stream: TcpStream,
-    key_path: String,
+    key_path: &String,
+    status: &Arc<AtomicU8>,
 ) -> Result<(TcpStream, Arc<Vec<u8>>), Box<dyn Error + Send + Sync>> {
     // Read encap key and get shared secret
     let ek = get_encap_key(key_path)?;
@@ -145,12 +149,14 @@ async fn key_agreement(
 
     println!("Key agreement succeeded.");
 
+    set_status(STATUS_ACTIVE, &status);
     Ok((stream, Arc::new(sk)))
 }
 
 async fn challenge_response_loop(
     mut stream: TcpStream,
     mut key: Arc<Vec<u8>>,
+    status: &Arc<AtomicU8>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut counter: u32 = 0;
     let mut sk_counter: u64 = 1;
@@ -169,6 +175,8 @@ async fn challenge_response_loop(
         if cfg!(debug_assertions) {
             println!("Sent challenge number: {}", counter);
         }
+
+        // TODO prevent denial of service attack where additional message is sent to lock servers
 
         let mut buffer = vec![0; 1024];
         let n = match timeout(
@@ -192,7 +200,7 @@ async fn challenge_response_loop(
                 println!("Received response");
             }
 
-            match verify_response(&buffer[..n], &message, counter, &key) {
+            match verify_response(&buffer[..n], &message, counter, &key, status) {
                 Ok(()) => {
                     if cfg!(debug_assertions) {
                         println!("Response validated");
@@ -225,8 +233,9 @@ async fn challenge_response_loop(
 }
 
 pub async fn start_client(
-    ip_addr: String,
-    key_path: String,
+    ip_addr: &String,
+    key_path: &String,
+    status: Arc<AtomicU8>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let server_addr = ip_addr.as_str();
 
@@ -240,9 +249,9 @@ pub async fn start_client(
     println!("Connected to server at {}", server_addr);
 
     // Init key outside the loop, will replace with SK derivation.
-    let (stream, key) = key_agreement(stream, key_path).await?;
+    let (stream, key) = key_agreement(stream, key_path, &status.clone()).await?;
 
-    challenge_response_loop(stream, key).await?;
+    challenge_response_loop(stream, key, &status).await?;
 
     println!("Closing connection...");
 

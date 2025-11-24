@@ -104,7 +104,7 @@ pub fn get_decap_key(key_path: String) -> Result<Vec<u8>, Box<dyn Error + Send +
     Ok(decap_key)
 }
 
-pub fn get_encap_key(key_path: String) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+pub fn get_encap_key(key_path: &String) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     let expanded = expand_tilde(&key_path);
 
     let mut file = File::open(&expanded)?;
