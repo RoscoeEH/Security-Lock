@@ -1,5 +1,5 @@
-# Security Lock
-Security Lock is a client-server model that protection mechanism for secure servers. The server is hosted on a secure keypad that connects to a sensor to detect breaches, in the event of a breach the clients running on each server initiate a shutdown to take advantage of at rest disk encryption for protection. 
+# KeyCrypt
+KeyCrypt is a client-server model that protection mechanism for secure servers. The server is hosted on a secure keypad that connects to a sensor to detect breaches, in the event of a breach the clients running on each server initiate a shutdown to take advantage of at rest disk encryption for protection. 
 
 Each client verifies that the server is in place by sending out constant, randomly generated, challenge messages that the server signs with HMAC-SHA2-256 and returns to the client. The protocol agrees on an initial session key using ML-KEM768 and and HKDF, it refreshes the session key every 2^24 messages. At rest the ML-KEM private key is protected with xChaCha20Poly1305 using an Argon2 password based key. The client runs as a daemon and starts immediately on power-up. By refreshing session keys with HKDF, redistribution of public keys should never have to happen in the lifetime of the device.
 
