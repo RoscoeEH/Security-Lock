@@ -172,9 +172,6 @@ async fn challenge_response_loop(
                 return Err(Box::new(e));
             }
         }
-        if cfg!(debug_assertions) {
-            println!("Sent challenge number: {}", counter);
-        }
 
         // TODO prevent denial of service attack where additional message is sent to lock servers
 
@@ -196,16 +193,8 @@ async fn challenge_response_loop(
             }
         };
         if n > 0 {
-            if cfg!(debug_assertions) {
-                println!("Received response");
-            }
-
             match verify_response(&buffer[..n], &message, counter, &key, status) {
-                Ok(()) => {
-                    if cfg!(debug_assertions) {
-                        println!("Response validated");
-                    }
-                }
+                Ok(()) => (),
                 Err(e) => {
                     println!("Invalid response: {}", e);
                     break;

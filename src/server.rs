@@ -109,22 +109,14 @@ async fn challenge_response_loop(
     loop {
         let mut buffer = [0; 1024];
         match socket.read(&mut buffer).await {
-            Ok(n) if n > 0 => {
-                if cfg!(debug_assertions) {
-                    println!("Received challenge number: {}", counter);
-                }
-                match process_message(&buffer[..n], counter, &key, &status).await {
-                    Ok(response) => {
-                        if let Err(e) = socket.write_all(&response).await {
-                            eprintln!("Failed to write response: {}", e);
-                        }
+            Ok(n) if n > 0 => match process_message(&buffer[..n], counter, &key, &status).await {
+                Ok(response) => {
+                    if let Err(e) = socket.write_all(&response).await {
+                        eprintln!("Failed to write response: {}", e);
                     }
-                    Err(e) => eprintln!("Failed to process message: {}", e),
                 }
-                if cfg!(debug_assertions) {
-                    println!("Sent response");
-                }
-            }
+                Err(e) => eprintln!("Failed to process message: {}", e),
+            },
             Ok(_) => {
                 eprintln!("Connection closed by {}", addr);
                 break;
